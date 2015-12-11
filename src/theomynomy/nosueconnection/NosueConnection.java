@@ -16,6 +16,8 @@ import java.io.PrintWriter;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -26,23 +28,31 @@ import javax.swing.JTextArea;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
+import com.sun.jna.platform.win32.Advapi32Util;
+import com.sun.jna.platform.win32.Win32Exception;
+import com.sun.jna.platform.win32.WinReg;
+
 public class NosueConnection {
 	private File hostsFile = new File("C:\\Windows\\System32\\drivers\\etc\\hosts");
 
 	private JFrame frame;
 
 	private JTextArea txtAreaHosts;
-	private JButton btnConnect;
-	private JButton btnRestore;
-	private JLabel lblService;
-	private JLabel lblUpdate;
+	private JButton btnConnect, btnRestore, btnLaunch;
+	private JLabel lblService, lblUpdate;
 
 	private boolean isConnected;
 
-	private final String VERSION = "v26112015";
-	private String LATEST_VERSION;
+	private final String VERSION = "v11122015";
+	private String LATEST_VERSION, CURRENT_FILENAME, OSU_DIRECTORY;
 
 	public NosueConnection() throws IOException {
+		String[] var1 = NosueConnection.class.getProtectionDomain().getCodeSource().getLocation().toString().split("/");
+		int var2 = var1.length;
+		CURRENT_FILENAME = var1[var2 - 1];
+
+		OSU_DIRECTORY = getOsuInstallationDirectory();
+
 		frame = new JFrame("Nosue! Connection");
 		frame.setSize(450, 300);
 		frame.setResizable(false);
@@ -80,25 +90,42 @@ public class NosueConnection {
 
 		btnRestore = new JButton("Restore");
 		btnRestore.addActionListener(actionListener());
-		btnRestore.setBounds(10, 213, 85, 23);
+		btnRestore.setBounds(105, 243, 85, 23);
 		frame.getContentPane().add(btnRestore);
+
+		btnLaunch = new JButton("Launch");
+		btnLaunch.addActionListener(actionListener());
+		btnLaunch.setBounds(200, 243, 85, 23);
+		frame.getContentPane().add(btnLaunch);
 
 		JLabel lblCurrentService = new JLabel("Current Service: ");
 		lblCurrentService.setFont(new Font("Tahoma", 0, 11));
-		lblCurrentService.setBounds(105, 247, 85, 14);
+		lblCurrentService.setBounds(10, 208, 85, 14);
 		frame.getContentPane().add(lblCurrentService);
 
 		lblService = new JLabel("osu!");
 		lblService.setFont(new Font("Tahoma", 1, 11));
-		lblService.setBounds(188, 247, 46, 14);
+		lblService.setBounds(95, 208, 46, 14);
 		frame.getContentPane().add(lblService);
 
-		lblUpdate = new JLabel("");
-		lblUpdate.setBounds(105, 231, 129, 14);
+		lblUpdate = new JLabel("Checking for updates...");
+		lblUpdate.setBounds(10, 223, 129, 14);
 		frame.getContentPane().add(lblUpdate);
 
 		frame.setVisible(true);
-		load();
+
+		refresh();
+
+		File _update = new File(System.getProperty("user.home") + "\\_update.txt");
+		if (_update.exists()) {
+			BufferedReader br = new BufferedReader(new FileReader(_update));
+			String[] contents = br.readLine().split(":");
+			br.close();
+			new File(contents[0]).delete();
+			_update.delete();
+			JOptionPane.showMessageDialog(null, "Successfully updated from " + contents[1] + " to " + VERSION, "Updater", 1);
+		}
+
 		update();
 	}
 
@@ -114,16 +141,26 @@ public class NosueConnection {
 						}
 					}
 					if (event.getSource() == btnRestore) {
-						Restore();
+						restore();
+					}
+					if (event.getSource() == btnLaunch) {
+						launch();
 					}
 
-					txtAreaHosts.setText("");
-					load();
+					refresh();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
 			}
 		};
+	}
+
+	private void launch() {
+		try {
+			Runtime.getRuntime().exec(OSU_DIRECTORY + "\\osu!.exe");
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	private void restart() {
@@ -137,7 +174,7 @@ public class NosueConnection {
 
 	private void quit() {
 		if (isConnected) {
-			int option = JOptionPane.showConfirmDialog(frame, "You are still connected to nosue! services.\r\nClose without removing modifications?", "Quit?", 0, 2);
+			int option = JOptionPane.showConfirmDialog(frame, "You are still connected to nosue! services.\r\nContinue? (You won't be able to access osu!)", "Quit?", 0, 2);
 			if (option == 0) {
 				System.exit(0);
 			}
@@ -146,8 +183,8 @@ public class NosueConnection {
 		}
 	}
 
-	private void Restore() throws IOException {
-		int option = JOptionPane.showConfirmDialog(frame, "You will lose any modifications done \r\nto the current hosts file. Continue?", "Restore hosts file?", 0, 1);
+	private void restore() throws IOException {
+		int option = JOptionPane.showConfirmDialog(frame, "You'll get a fresh factory state hosts file.\r\nContinue? (All current changes will be lost)", "Restore?", 0, 1);
 		if (option == 0) {
 			lblService.setText("osu!");
 			btnConnect.setText("Connect");
@@ -196,32 +233,34 @@ public class NosueConnection {
 		br.close();
 
 		if (!LATEST_VERSION.isEmpty() && LATEST_VERSION != null && !VERSION.equalsIgnoreCase(LATEST_VERSION)) {
-			int option = JOptionPane.showConfirmDialog(frame, "An update is available! " + LATEST_VERSION + "\r\nDownload the new update now?", "Update?", 0, 1);
-			if (option == 0) {
-				Thread thread = new Thread();
-				thread.start();
+			lblUpdate.setText("Downloading...");
 
-				lblUpdate.setText("Downloading...");
-
-				FileOutputStream fos = new FileOutputStream("nosue_connection_" + LATEST_VERSION + ".exe");
-				fos.getChannel().transferFrom(Channels.newChannel(new URL(link).openStream()), 0L, Long.MAX_VALUE);
-				fos.close();
-
-				lblUpdate.setText("Download complete.");
-
-				int restart = JOptionPane.showConfirmDialog(frame, "Update has finished downloading. \r\nDo you wish to restart now?", "Restart?", 0, 1);
-				if (restart == 0) {
-					restart();
-				} else {
-					lblUpdate.setFont(new Font("Tahoma", 1, 11));
-					lblUpdate.setText("Restart required.");
-				}
-				try {
-					thread.join();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
+			File file = new File("nosue_connection_" + LATEST_VERSION + ".exe");
+			if (file.exists()) {
+				file.delete();
 			}
+
+			FileOutputStream fos = new FileOutputStream("nosue_connection_" + LATEST_VERSION + ".exe");
+			fos.getChannel().transferFrom(Channels.newChannel(new URL(link).openStream()), 0L, Long.MAX_VALUE);
+			fos.close();
+
+			File _update = new File(System.getProperty("user.home") + "\\_update.txt");
+			if (_update.exists()) {
+				_update.delete();
+			}
+			_update.createNewFile();
+
+			PrintWriter pw = new PrintWriter(new FileWriter(_update));
+			pw.write(CURRENT_FILENAME + ":" + VERSION);
+			pw.flush();
+			pw.close();
+
+			lblUpdate.setText("Download complete.");
+
+			restart();
+
+		} else {
+			lblUpdate.setText("No updates are available.");
 		}
 	}
 
@@ -267,9 +306,10 @@ public class NosueConnection {
 		lblService.setText("nosue!");
 	}
 
-	private void load() throws IOException {
+	private void refresh() throws IOException {
 		BufferedReader br = new BufferedReader(new FileReader(hostsFile));
 		String contents;
+		txtAreaHosts.setText("");
 
 		while ((contents = br.readLine()) != null) {
 			txtAreaHosts.setText(txtAreaHosts.getText() + contents + "\r\n");
@@ -281,8 +321,21 @@ public class NosueConnection {
 			}
 		}
 		br.close();
-
 		txtAreaHosts.setCaretPosition(0);
+	}
+
+	// Credit to itdelatrisu (https://github.com/itdelatrisu)
+	private String getOsuInstallationDirectory() {
+		if (!System.getProperty("os.name").startsWith("Win"))
+			return null;
+		String value;
+		try {
+			value = Advapi32Util.registryGetStringValue(WinReg.HKEY_CLASSES_ROOT, "osu\\DefaultIcon", null);
+		} catch (Win32Exception e) {
+			return null;
+		}
+		Matcher m = Pattern.compile("\"(.+)\\\\[^\\/]+\\.exe\"").matcher(value);
+		return (m.find()) ? m.group(1) : null;
 	}
 
 	public static void main(String[] args) throws ClassNotFoundException, InstantiationException, IllegalAccessException, UnsupportedLookAndFeelException, IOException {
