@@ -43,7 +43,7 @@ public class NosueConnection {
 
 	private boolean isConnected;
 
-	private final String VERSION = "v11122015";
+	private final String VERSION = "v15122015";
 	private String LATEST_VERSION, CURRENT_FILENAME, OSU_DIRECTORY;
 
 	public NosueConnection() throws IOException {
@@ -157,6 +157,39 @@ public class NosueConnection {
 
 	private void launch() {
 		try {
+
+			File config = new File(OSU_DIRECTORY + "\\osu!.cfg");
+			BufferedReader br = new BufferedReader(new FileReader(OSU_DIRECTORY + "\\osu!.cfg"));
+			String temp;
+
+			ArrayList<String> data = new ArrayList<String>();
+
+			while ((temp = br.readLine()) != null) {
+				String[] split = temp.split("=");
+
+				if (split[0].trim().equalsIgnoreCase("_ReleaseStream") && !split[1].trim().equalsIgnoreCase("Stable")) {
+					int option = JOptionPane.showConfirmDialog(frame, "You're not running osu! on Stable (Fallback).\r\nYou'll be downgraded to it now. Continue?", "Downgrade?", 0, 1);
+					if (option == 0) {
+						data.add("_ReleaseStream = Stable");
+					} else {
+						return;
+					}
+				} else {
+					data.add(temp);
+				}
+			}
+			br.close();
+
+			config.delete();
+			config.createNewFile();
+
+			PrintWriter pw = new PrintWriter(new FileWriter(config));
+			for (int i = 0; i < data.size(); i++) {
+				pw.write(data.get(i) + "\r\n");
+				pw.flush();
+			}
+			pw.close();
+
 			Runtime.getRuntime().exec(OSU_DIRECTORY + "\\osu!.exe");
 		} catch (IOException e) {
 			e.printStackTrace();
