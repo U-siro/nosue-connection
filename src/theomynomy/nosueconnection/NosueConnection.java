@@ -43,7 +43,7 @@ public class NosueConnection {
 
 	private boolean isConnected;
 
-	private final String VERSION = "v15122015";
+	private final String VERSION = "v05012016";
 	private String LATEST_VERSION, CURRENT_FILENAME, OSU_DIRECTORY;
 
 	public NosueConnection() throws IOException {
@@ -331,6 +331,8 @@ public class NosueConnection {
 		PrintWriter pw = new PrintWriter(new FileWriter(hostsFile, true));
 		pw.write("\r\n178.62.57.37 osu.ppy.sh");
 		pw.write("\r\n178.62.57.37 a.ppy.sh");
+		pw.write("\r\n178.62.57.37 c.ppy.sh");
+		pw.write("\r\n178.62.57.37 c1.ppy.sh");
 		pw.flush();
 		pw.close();
 
