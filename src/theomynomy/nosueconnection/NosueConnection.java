@@ -33,7 +33,7 @@ import com.sun.jna.platform.win32.Win32Exception;
 import com.sun.jna.platform.win32.WinReg;
 
 public class NosueConnection {
-	private File hostsFile = new File("C:\\Windows\\System32\\drivers\\etc\\hosts");
+	private File hostsFile = new File(System.getenv("SystemDrive") + "\\Windows\\System32\\drivers\\etc\\hosts");
 
 	private JFrame frame;
 
@@ -43,7 +43,7 @@ public class NosueConnection {
 
 	private boolean isConnected;
 
-	private final String VERSION = "v05012016";
+	private final String VERSION = "v06012016";
 	private String LATEST_VERSION, CURRENT_FILENAME, OSU_DIRECTORY;
 
 	public NosueConnection() throws IOException {
